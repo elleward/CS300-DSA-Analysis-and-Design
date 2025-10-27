@@ -1,0 +1,254 @@
+/*******************************************************
+ * ABC University
+ * Elle Ward
+ * CS300
+ * Southern New Hampshire University
+ *******************************************************/
+
+#include <algorithm>
+#include <cctype>
+#include <exception>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+// ---------- Global trim helper for all functions ----------
+static inline std::string trim(const std::string& s) {
+    if (s.empty()) return s;
+    size_t start = 0;
+    while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) ++start;
+    if (start == s.size()) return "";
+
+    size_t end = s.size() - 1;
+    while (end > start && std::isspace(static_cast<unsigned char>(s[end]))) --end;
+
+    return s.substr(start, end - start + 1);
+}
+
+struct Course {
+    std::string number;
+    std::string title;
+    std::vector<std::string> prereqs;
+};
+
+class AdvisingCatalog {
+public:
+    // Load from CSV path; returns number of courses loaded. Resets existing data.
+    size_t loadFromCsv(const std::string& csvPath) {
+        std::ifstream in(csvPath);
+        if (!in.is_open()) {
+            throw std::runtime_error("Error: Could not open file '" + csvPath + "'.");
+        }
+
+        // Reset state for fresh load
+        courses_.clear();
+
+        std::string line;
+        size_t lineNo = 0;
+        while (std::getline(in, line)) {
+            ++lineNo;
+            if (isBlank(line)) continue; // skip blank lines
+
+            // Parse CSV line
+            std::vector<std::string> tokens = splitCsv(line);
+            if (tokens.size() < 2) {
+                std::cerr << "Warning [line " << lineNo << "]: Expected at least 2 fields (course number, title). Skipped.\n";
+                continue;
+            }
+
+            Course c;
+            c.number = toUpperTrim(tokens[0]);
+            c.title  = trim(tokens[1]);
+
+            // Remaining tokens (if any) are prerequisite course numbers
+            for (size_t i = 2; i < tokens.size(); ++i) {
+                std::string pre = toUpperTrim(tokens[i]);
+                if (!pre.empty()) c.prereqs.push_back(pre);
+            }
+
+            if (c.number.empty() || c.title.empty()) {
+                std::cerr << "Warning [line " << lineNo << "]: Empty course number/title. Skipped.\n";
+                continue;
+            }
+
+            courses_[c.number] = std::move(c);
+        }
+
+        return courses_.size();
+    }
+
+    bool loaded() const { return !courses_.empty(); }
+
+    // Return a sorted list of course numbers
+    std::vector<std::string> listSorted() const {
+        std::vector<std::string> keys;
+        keys.reserve(courses_.size());
+        for (const auto& kv : courses_) keys.push_back(kv.first);
+
+        std::sort(keys.begin(), keys.end(), [](const std::string& a, const std::string& b) {
+            return a < b;
+        });
+        return keys;
+    }
+
+    const Course* getCourse(const std::string& courseNumber) const {
+        std::string key = toUpperTrim(courseNumber);
+        auto it = courses_.find(key);
+        if (it == courses_.end()) return nullptr;
+        return &it->second;
+    }
+
+    std::string getTitleOrPlaceholder(const std::string& courseNumber) const {
+        auto it = courses_.find(courseNumber);
+        if (it == courses_.end()) {
+            return "(title unavailable)";
+        }
+        return it->second.title;
+    }
+
+private:
+    std::unordered_map<std::string, Course> courses_;
+
+    // String utilities
+    static inline bool isBlank(const std::string& s) {
+        for (unsigned char ch : s) if (!std::isspace(ch)) return false;
+        return true;
+    }
+
+    static inline std::string toUpperTrim(const std::string& s) {
+        std::string t = trim(s);
+        for (char& ch : t) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+        return t;
+    }
+
+    static std::vector<std::string> splitCsv(const std::string& line) {
+        std::vector<std::string> out;
+        std::stringstream ss(line);
+        std::string cell;
+        while (std::getline(ss, cell, ',')) {
+            out.push_back(cell);
+        }
+        if (!line.empty() && line.back() == ',') out.emplace_back("");
+        return out;
+    }
+};
+
+// Helpers
+
+static void printMenu() {
+    std::cout << "\nABCU Advising Assistance Program\n"
+              << "--------------------------------\n"
+              << "  1. Load data file\n"
+              << "  2. Print course list (alphanumeric)\n"
+              << "  3. Print course information\n"
+              << "  9. Exit\n"
+              << "Select an option: ";
+}
+
+static void handlePrintCourseList(const AdvisingCatalog& catalog) {
+    if (!catalog.loaded()) {
+        std::cout << "Error: No data loaded. Choose option 1 to load a file first.\n";
+        return;
+    }
+
+    auto keys = catalog.listSorted();
+    if (keys.empty()) {
+        std::cout << "(No courses found.)\n";
+        return;
+    }
+
+    std::cout << "\nCourse List (Alphanumeric)\n";
+    std::cout << "--------------------------\n";
+    for (const auto& num : keys) {
+        const Course* c = catalog.getCourse(num);
+        if (c) {
+            std::cout << c->number << " - " << c->title << "\n";
+        }
+    }
+}
+
+static void handlePrintCourseInfo(const AdvisingCatalog& catalog) {
+    if (!catalog.loaded()) {
+        std::cout << "Error: No data loaded. Choose option 1 to load a file first.\n";
+        return;
+    }
+
+    std::cout << "Enter a course number (e.g., CS200): ";
+    std::string query;
+    std::getline(std::cin, query);
+    query = trim(query);
+    if (query.empty()) {
+        std::cout << "Error: Course number cannot be empty.\n";
+        return;
+    }
+
+    const Course* c = catalog.getCourse(query);
+    if (!c) {
+        std::cout << "Error: Course '" << query << "' not found.\n";
+        return;
+    }
+
+    std::cout << "\n" << c->number << ": " << c->title << "\n";
+    if (c->prereqs.empty()) {
+        std::cout << "Prerequisites: None\n";
+    } else {
+        std::cout << "Prerequisites:\n";
+        for (const auto& pre : c->prereqs) {
+            std::cout << "  - " << pre << " : " << catalog.getTitleOrPlaceholder(pre) << "\n";
+        }
+    }
+}
+
+int main() {
+    AdvisingCatalog catalog;
+
+    for (;;) {
+        printMenu();
+
+        std::string rawChoice;
+        std::getline(std::cin, rawChoice);
+        if (!std::cin.good()) {
+            std::cout << "\nInput stream closed. Exiting.\n";
+            return 0;
+        }
+        std::string choice = trim(rawChoice);
+
+        if (choice == "1") {
+            std::cout << "Enter the course data filename (CSV): ";
+            std::string path;
+            std::getline(std::cin, path);
+            path = trim(path);
+            if (path.empty()) {
+                std::cout << "Error: Filename cannot be empty.\n";
+                continue;
+            }
+
+            try {
+                size_t n = catalog.loadFromCsv(path);
+                std::cout << "Loaded " << n << " course(s) from '" << path << "'.\n";
+            } catch (const std::exception& ex) {
+                std::cout << ex.what() << "\n";
+            }
+        }
+        else if (choice == "2") {
+            handlePrintCourseList(catalog);
+        }
+        else if (choice == "3") {
+            handlePrintCourseInfo(catalog);
+        }
+        else if (choice == "9") {
+            std::cout << "Goodbye.\n";
+            break;
+        }
+        else {
+            std::cout << "Error: Invalid option. Please choose 1, 2, 3, or 9.\n";
+        }
+    }
+
+    return 0;
+}
+
