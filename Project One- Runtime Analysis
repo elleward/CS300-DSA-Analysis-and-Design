@@ -1,0 +1,68 @@
+File Reading and Object Creation
+
+Procedure LoadCourseData(filename):
+   Open file
+   For each line in file:
+       Split line by commas into fields
+       courseNumber ← fields[0]
+       courseName ← fields[1]
+       prerequisites ← fields[2..n]
+       Create Course object with courseNumber, courseName, prerequisites
+       Add Course to selected data structure
+   Close file
+ 
+
+Printing Course Information and Prerequisites
+
+Procedure PrintCourseDetails(courseNumber):
+   course ← FindCourse(courseNumber)
+   If course exists Then
+       Print(course.courseNumber + ": " + course.courseName)
+       If course.prerequisites is empty Then
+           Print("No prerequisites")
+       Else
+           Print("Prerequisites: ")
+           For each prereq in course.prerequisites:
+               Print(prereq)
+   Else
+       Print("Course not found")
+ 
+
+Printing Courses in Alphanumeric Order
+
+ 
+Procedure PrintCourseListAlphanumeric(dataStructure):
+  Sort course list or keys by courseNumber
+  For each course in sorted order:
+      Print(course.courseNumber + ", " + course.courseName)
+ 
+
+Menu Pseudocode
+
+Procedure MainMenu():
+  dataStructure ← Prompt("Select data structure")
+  Repeat
+      Display menu options
+      choice ← Prompt("Choose option")
+      Case choice of
+          1: LoadData()
+          2: PrintAllCourses()
+          3: PrintSingleCourse()
+          9: Exit
+          Default: Print("Invalid option")
+  Until choice = 9
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+ 
+The hash table is the best fit for ABCU’s advising program. Advisors usually need to find one course and its prerequisites fast, and the hash table can do that in O(1) time on average. Vectors are simpler to set up but slow for repeated searches, while binary search trees keep courses sorted automatically but take more work to manage.
